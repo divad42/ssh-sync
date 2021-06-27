@@ -1,0 +1,40 @@
+#!/bin/sh
+
+local=$(echo $1 | cut -f 1 -d ",")
+remote=$(echo $1 | cut -f 2 -d ",")
+
+tmp=/tmp/${$}-scp-sync
+mkdir tmp
+scp -pr $2:$remote $tmp
+
+sync() {
+
+	contents=$(ls -F $1)
+
+	for i in $contents; do
+
+		if [[ $(echo $i | grep "/$") != "" ]]; then
+
+			sync $1/$i $2/$i $3
+
+		else
+
+			files=$(echo "$files $i" | sed "s/\*$//")
+
+		fi
+
+	done
+
+
+	for i in $files; do
+
+		( test ${1}/${i} -nt ${tmp}/${i} && 
+		  scp -p ${1}/${i} ${3}:${2}/${i} ) ||
+		( test ${1}/${i} -ot ${tmp}/${i} &&
+		  mv ${tmp}/${i} ${1}/${i} )
+
+	done
+
+}
+
+sync $local $remote $2
