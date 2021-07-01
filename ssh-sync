@@ -4,8 +4,10 @@ local=$(echo $1 | cut -f 1 -d ",")
 remote=$(echo $1 | cut -f 2 -d ",")
 
 tmp=/tmp/${$}-scp-sync
-mkdir tmp
+mkdir -p tmp
 scp -pr $2:$remote $tmp
+
+files=""
 
 sync() {
 
@@ -15,26 +17,31 @@ sync() {
 
 		if [[ $(echo $i | grep "/$") != "" ]]; then
 
-			sync $1/$i $2/$i $3
+			local i=$(echo $i | sed "s/\/$//")
+			tmp=$tmp/$i sync $1/$i $2/$i $3
+			tmp=$(echo $tmp | sed "s/\/[^/]*$//")
 
 		else
 
-			files=$(echo "$files $i" | sed "s/\*$//")
+			files=$(echo "$files $tmp/$i" |
+				sed "s/\*$//" |
+				cut -f "3-" -d "/")
 
 		fi
 
 	done
 
-
-	for i in $files; do
-
-		( test ${1}/${i} -nt ${tmp}/${i} && 
-		  scp -p ${1}/${i} ${3}:${2}/${i} ) ||
-		( test ${1}/${i} -ot ${tmp}/${i} &&
-		  mv ${tmp}/${i} ${1}/${i} )
-
-	done
-
 }
+
+for i in $files; do
+
+	(( test $local/$i -nt $tmp/$i ||
+	   ! ls $tmp/$i ) && 
+	   scp -p $local/$i $2:$remote/$i ) ||
+	(( test $local/$i -ot $tmp/$i ||
+	   ! ls $local/$i ) &&
+	   mv $tmp/$i $local/$i )
+
+done
 
 sync $local $remote $2
